@@ -19,6 +19,8 @@ DATABASE = os.path.join(BASEDIR,'dataviewer.db')
 CACHE_DIR = os.path.join(BASEDIR,'cache')
 FITS_REGEX = 'GROND_._OB_ana.fits'
 IMAGE_ENGINE = astImages.saveBitmap
+PLACEHOLDER_IMAGE = os.path.join(BASEDIR,'images/placeholder.png')
+BANDS = 'grizJHK'
 
 FLAGS = {
   'flag_guiding':     'Significant guiding problems',
@@ -29,7 +31,7 @@ FLAGS = {
 def initdb():
   db = sqlite3.connect(DATABASE)
   SQL = '''
-        CREATE TABLE Flags (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, comments TEXT, %s);
+        CREATE TABLE Flags (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, comments TEXT, saved INTEGER, %s);
         '''
   SQL = SQL.strip()
   SQL = SQL % (','.join(FLAGS.keys()),)
@@ -40,36 +42,61 @@ def initdb():
   db.close()
   
 
-class Application(tk.Frame):              
+class Application(tk.Frame):
+  '''
+  Creates the GROND data QA app.
+  Loops (recursively) over the GROND_._OB_ana.fits images found in the CL specified
+  path.
+  Makes PNGs of the entire field, and presents them on a TKinter GUI. Saves the "flags"
+  checkboxes to a sqlite3 database
+  '''
+
   def __init__(self, master=None):
-    self.initImages()
     self.connectToDB()
+    self.initTargets()
     self.currentTarget = None
     tk.Frame.__init__(self, master)   
     self.grid()
     self.createWidgets()
 
-  def initImages(self):
+  def initTargets(self):
+    '''
+    Finds all GROND_._OB_ana.fits files in the CL specified directory
+    Gives these images to the (async) process that creates the PNGs 
+    '''
     pool = Pool(processes=4) 
     self.cache={}
     fitsimages = []
+    self.targets = []
     print "Walking directory structure to find GROND images. This may take a moment!"
     for path, dirs, files in os.walk(sys.argv[1]):
       for f in files:
         if re.search(FITS_REGEX,f):
-          fitsimages.append(os.path.join(os.path.abspath(path),f))
-
+          img = os.path.join(os.path.abspath(path),f)
+          fitsimages.append(img)
+          target = img[:re.search(FITS_REGEX,img).start()-2]
+          if target not in self.targets:
+            self.targets.append(target)        
+    self.currentTarget = self.targets[0]
+    
     for image in fitsimages:
-      d = pyfits.open(image)[0].data
-      fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
-      #saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName)
-      #cutLevels=["smart", 99.5],size=300,colorMapName='gray'
-      args = [fname,d,["smart", 99.5],400,'gray']
+      if IMAGE_ENGINE==astImages.saveBitmap:
+       d = pyfits.open(image)[0].data
+       fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
+       #saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName)
+       #cutLevels=["smart", 99.5],size=300,colorMapName='gray'
+       args = [fname,d,["smart", 99.5],400,'gray']
+      if IMAGE_ENGINE==lib.ds9:
+        args = []
       if DEBUG:
-        print "Running asnyc job astImages.saveBitmap with args=%s" % args
+        print "Running asnyc job with args=%s" % args
       pool.apply_async(IMAGE_ENGINE,args,callback=self.updateCache(image,fname))
 
   def updateCache(self,image,fname):
+    '''
+    Callback function that is called whenever an async task completes.
+    Updates the internal cache with {FITS_path:PNG_path}
+    '''
     if DEBUG:
       print "updating cache with %s=%s" % (image,fname)
     self.cache[image]=fname
@@ -79,13 +106,31 @@ class Application(tk.Frame):
       initdb()
     self.db = sqlite3.connect(DATABASE)
 
-  def getImages():
-    
+  def getImagesFromCache(self):
+    '''
+    Looks into the internal cache for PNGs. If not there, returns a placeholder image
+    '''
+    L = []
+    for band in BANDS:
+      ct = self.currentTarget
+      currentImage = '%s/%s/GROND_%s_OB_ana.fits' % (ct,band,band)
+      if currentimage in self.cache.keys():
+        L.append(self.cache[currentimage])
+      else:
+        L.append(PLACEHOLDER_PNG)
+    return L #List of PNG paths  
       
 
   def printPosition(self,widget):
+    '''
+    Print the TKinter grid position (debug purposes only)
+    '''
     grid_info = widget.grid_info()
     print "row:", grid_info["row"], "column:", grid_info["column"] 
+
+  def refresh(self):
+    self.clear()
+    self.createWidgets()
 
   def clear(self):
     [i.grid_forget() for i in self.imlabels]
@@ -95,7 +140,7 @@ class Application(tk.Frame):
   def createWidgets(self):
     self.imlabels = []
     col,row = 0,0
-    for image in self.getImages():
+    for image in self.getImagesFromCache():
       photo = ImageTk.PhotoImage(Image.open(image))
       imlabel = tk.Label(self,image=photo)
       imlabel.image = photo # keep a reference!
@@ -113,6 +158,10 @@ class Application(tk.Frame):
     self.buttons.append(b)
 
     b = tk.Button(self, text="Save and continue",command=self.next)
+    b.grid()
+    self.buttons.append(b)
+    
+    b = tk.Button(self, text="Refresh page",command=self.refresh)
     b.grid()
     self.buttons.append(b)
 
