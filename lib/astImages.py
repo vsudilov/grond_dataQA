@@ -848,7 +848,7 @@ def generateContourOverlay(backgroundImageData, backgroundImageWCS, contourImage
     return {'scaledImage': scaledBack, 'contourLevels': cLevels}
     
 #---------------------------------------------------------------------------------------------------
-def saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName):
+def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorMapName):
     """Makes a bitmap image from an image array; the image format is specified by the
     filename extension. (e.g. ".jpg" =JPEG, ".png"=PNG).
     
@@ -871,7 +871,6 @@ def saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName):
     
     """		
     cut=intensityCutImage(imageData, cutLevels)
-    
     # Make plot
     aspectR=float(cut['image'].shape[0])/float(cut['image'].shape[1])
     fig = pylab.figure(figsize=(10,10*aspectR))
@@ -895,12 +894,11 @@ def saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName):
     else:
         pylab.imshow(cut['image'],  interpolation="bilinear",  norm=cut['norm'], origin='lower',
             cmap=colorMap)
-
     pylab.axis("off")
     
     pylab.savefig(outputFileName,format="png",dpi=dpi)	
     pylab.close("all")
-    
+    return inputFileName,outputFileName
 #    try:
 #        from PIL import Image
 #    except:
