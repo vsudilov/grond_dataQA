@@ -108,7 +108,7 @@ class Application(tk.Frame):
        fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
        #saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName)
        #cutLevels=["smart", 99.5],size=300,colorMapName='gray'
-       args = [fname,image,d,["smart", 99.5],300,'gray']
+       args = [fname,image,d,["smart", 99.5],300,'gray_r']
       #if IMAGE_ENGINE==lib.ds9: #Not yet implemented
       #  args = []
       if DEBUG:
