@@ -13,7 +13,7 @@ BASEDIR = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0,BASEDIR)
 from lib import astImages
 
-DEBUG = True
+DEBUG = False
 
 DATABASE = os.path.join(BASEDIR,'dataviewer.db')
 CACHE_DIR = os.path.join(BASEDIR,'cache')
@@ -113,7 +113,10 @@ class Application(tk.Frame):
       #  args = []
       if DEBUG:
         print "Running asnyc job with args=%s" % args
-      q = pool.apply_async(IMAGE_ENGINE,args,callback=self.updateCache)
+      loadvalue = float(fitsimages.index(image))/len(fitsimages)*100.0
+      if not round(loadvalue) % 10:
+        print "Loading: %0.1f%%" % (loadvalue)
+      pool.apply_async(IMAGE_ENGINE,args,callback=self.updateCache)
       #pool.apply(IMAGE_ENGINE,args)
 
   def updateCache(self,*args):
