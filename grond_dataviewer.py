@@ -23,23 +23,24 @@ PLACEHOLDER_PNG = os.path.join(BASEDIR,'images/placeholder.png')
 BANDS = 'grizJHK'
 
 FLAGS = {
-  'flag_guiding':         'Significant guiding problems',
-  'flag_focus':           'Focus problems',
-  'flag_ROnoise':         'Electronic readout noise problems',
-  'flag_missingImage':    'One or more images missing',
-  'flag_unknownErr':      'Some major unknown error has occured',
+  'flag_guiding':         ('Guiding problems', 1),
+  'flag_focus':           ('Focus problems', 2),
+  'flag_roNoise':         ('Readout noise problems', 3),
+  'flag_unknownErr':      ('Unknown major problems', 4),
 }
+
+#FLAGSET_LENGTH=64;x=67;z=[x & (2**n) for n in range(FLAGSET_LENGTH)]
 
 def initdb():
   db = sqlite3.connect(DATABASE)
   SQL = '''
-        CREATE TABLE Flags (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, comments TEXT, viewed INTEGER, %s);
+        CREATE TABLE Flags (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, comments TEXT, viewed INTEGER, g, r, i, z, J, H, K);
+        CREATE TABLE MissingImages (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, g, r, i, z, J, H, K);
         '''
   SQL = SQL.strip()
-  SQL = SQL % (','.join(FLAGS.keys()),)
   if DEBUG:
     print "initdb: SQL:\n %s" % SQL
-  db.execute(SQL)
+  db.executescript(SQL)
   db.commit()
   db.close()
   
@@ -82,7 +83,7 @@ class Application(tk.Frame):
                     INSERT INTO Flags (target, comments, viewed, %s) VALUES (%s, NULL, 0, %s) 
                     '''
               SQL = SQL.strip()
-              SQL = SQL % (','.join(FLAGS.keys()), '"%s"' % target, ','.join(["0" for i in range(len(FLAGS.keys()))]) )
+              SQL = SQL % (','.join([i for i in BANDS]), '"%s"' % target, ','.join(["0" for i in range(len(BANDS))]) )
               if DEBUG:
                 print "initTarget with SQL:\n%s" % SQL
               self.db.execute(SQL)
@@ -94,7 +95,7 @@ class Application(tk.Frame):
     Finds all GROND_._OB_ana.fits files in the CL specified directory
     Gives these images to the (async) process that creates the PNGs 
     '''
-    pool = Pool(processes=5) 
+    pool = Pool(processes=4) 
     self.cache={}
     fitsimages = []
     for target in self.targets:
@@ -174,8 +175,11 @@ class Application(tk.Frame):
     
     SQL = '''  UPDATE Flags SET viewed=1 WHERE target=="%s"; ''' % self.current_target
     SQL = SQL.strip()
-    for k,v in self.flags.iteritems():
-      SQL+='UPDATE Flags SET %s=%s WHERE target=="%s";' % (k,v.get(),self.current_target)
+    for band in BANDS:
+      value = 0
+      for k,v in self.flags[band].iteritems():
+        value += v.get()*2**k
+      SQL+='UPDATE Flags SET %s=%s WHERE target=="%s";' % (band,value,self.current_target)
     if DEBUG:
       print "save with SQL:\n%s" % SQL
     self.db.executescript(SQL)
@@ -203,39 +207,42 @@ class Application(tk.Frame):
   def createWidgets(self):
     self.imlabels = []
     col,row = 0,0
-    span = 3
+    colspan = len(FLAGS)*2
+    rowspan = colspan
     for image in self.getImagesFromCache():
       photo = ImageTk.PhotoImage(Image.open(image))
       imlabel = tk.Label(self,image=photo)
       imlabel.image = photo # keep a reference!
-      imlabel.grid(column=col,row=row,columnspan=span,rowspan=span,stick=tk.W+tk.E+tk.S+tk.N)
-      col += 1*span
-      if col > 2*span:
-        row += 1*span
+      imlabel.grid(column=col,row=row,columnspan=colspan,rowspan=rowspan,sticky=tk.W+tk.E+tk.S+tk.N)
+      col += 1*colspan
+      if col > 2*colspan:
+        row += 1*rowspan
         col = 0
       self.imlabels.append(imlabel)
 
     self.buttons = []
     self.checkboxes = []
     self.labels = []
-    startcol = col
+    startcol = 0
+    startrow = row+1*rowspan
+    col,row = startcol, startrow
+    colspan = len(FLAGS)
+    rowspan = 1
     self.flags = {}
-    for k,v in FLAGS.iteritems():
-      self.flags[k] = tk.IntVar()
-      c = tk.Checkbutton(self,text=v,variable=self.flags[k])
-      c.grid(column=col,row=row)
-      col+=1
-      if col>2*span:
-        row+=1
-        col = startcol
-      self.checkboxes.append(c)
+    for band in BANDS:
+      self.flags[band] = {}
+      l = tk.Label(self,text=band)
+      l.grid(column=col,row=row)
+      self.labels.append(l)
+      for flagTxt,flagIndex in FLAGS.values():
+        row+=1*rowspan
+        self.flags[band][flagIndex] = tk.IntVar()
+        c = tk.Checkbutton(self,text=flagTxt,variable=self.flags[band][flagIndex])
+        c.grid(column=col,row=row,columnspan=colspan,rowspan=rowspan,sticky=tk.W)
+        self.checkboxes.append(c)
+      col+=1*colspan
+      row = startrow
 
-    #buttons = { 'Save and quit':self.quit,
-    #            'Save and continue':self.next,
-    #            'Refresh page':self.refresh,
-    #            'Previous':self.back,
-    #           } 
-    #Better to set buttons manually -- easier to set grid() position
     
     b = tk.Button(self, text='Save and Quit', command=self.quit)
     b.grid(column=100,row=0)        
@@ -266,8 +273,7 @@ class Application(tk.Frame):
       l = tk.Label(self,text=text,fg="blue")
       l.grid(column=1,row=100,columnspan=5,sticky=tk.W)
       self.labels.append(l)
-  
-
+    
     if DEBUG:
       print "Images:"
       [self.printPosition(i) for i in self.imlabels]
