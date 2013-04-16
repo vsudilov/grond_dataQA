@@ -23,13 +23,18 @@ PLACEHOLDER_PNG = os.path.join(BASEDIR,'images/placeholder.png')
 BANDS = 'grizJHK'
 
 FLAGS = {
-  'flag_guiding':         ('Guiding problems', 1),
-  'flag_focus':           ('Focus problems', 2),
-  'flag_roNoise':         ('Readout noise problems', 3),
-  'flag_unknownErr':      ('Unknown major problems', 4),
+  0:  ('Guiding problems', 'flag_guiding'),
+  1:  ('Focus problems', 'flag_focus'),
+  2:  ('Readout noise problems', 'flag_roNoise'),
+  3:  ('Unknown major problems', 'flag_unknownErr'),
 }
 
-#FLAGSET_LENGTH=64;x=67;z=[x & (2**n) for n in range(FLAGSET_LENGTH)]
+
+def decodeIntFlag(val):
+  #FLAGSET_LENGTH=64;x=67;z=[x & (2**n) for n in range(FLAGSET_LENGTH)]
+  setFlags = [val & (2**n) for n in range(len(FLAGS))]
+  return setFlags
+
 
 def initdb():
   db = sqlite3.connect(DATABASE)
@@ -204,6 +209,21 @@ class Application(tk.Frame):
     self.clear()
     self.createWidgets()
 
+
+  def getFlagVal(self,band,flagIndex):
+    SQL = '''
+          SELECT %s FROM Flags WHERE target="%s"
+          '''
+    SQL=SQL.strip()
+    SQL = SQL % (band,self.current_target)
+    intFlag = self.db.execute(SQL).fetchall()[0][0]
+    L = decodeIntFlag(intFlag)
+    print L,flagIndex,intFlag
+    if not L[flagIndex]:
+      return "0"
+    return "1" #TK expects string booleans
+
+
   def createWidgets(self):
     self.imlabels = []
     col,row = 0,0
@@ -234,9 +254,10 @@ class Application(tk.Frame):
       l = tk.Label(self,text=band)
       l.grid(column=col,row=row)
       self.labels.append(l)
-      for flagTxt,flagIndex in FLAGS.values():
+      for flagIndex,(flagTxt,flagDBname) in FLAGS.iteritems():
         row+=1*rowspan
         self.flags[band][flagIndex] = tk.IntVar()
+        self.flags[band][flagIndex].set(self.getFlagVal(band,flagIndex))
         c = tk.Checkbutton(self,text=flagTxt,variable=self.flags[band][flagIndex])
         c.grid(column=col,row=row,columnspan=colspan,rowspan=rowspan,sticky=tk.W)
         self.checkboxes.append(c)
@@ -279,7 +300,6 @@ class Application(tk.Frame):
       [self.printPosition(i) for i in self.imlabels]
       print "Buttons:"
       [self.printPosition(b) for b in self.buttons]
-
 
 
 if __name__ == "__main__":
