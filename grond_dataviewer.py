@@ -148,14 +148,12 @@ class Application(tk.Frame):
 
 
   def updateCache(self,*args):
-    image = args[0][0]
-    fname = args[0][1]
     '''
     Callback function that is called whenever an async task completes.
     Updates the internal cache with {FITS_path:PNG_path}
     '''
-    #if DEBUG: #Too much spam!
-      #print "updating cache with %s=%s" % (image,fname)
+    image = args[0][0]
+    fname = args[0][1]
     self.cache[image]=fname
 
   def connectToDB(self):
@@ -368,23 +366,30 @@ def uploadToWiki(args,db):
   
   table = []
   header = '''
-                || \'\'\'Path\'\'\' || \'\'\'Viewed?\'\'\' || \'\'\'g\'\'\' || \'\'\'r\'\'\' || \'\'\'i\'\'\' || \'\'\'z\'\'\' || \'\'\'J\'\'\' || \'\'\'H\'\'\' || \'\'\'K\'\'\' ||
+                || \'\'\'Path\'\'\' || \'\'\'Viewed?\'\'\' || \'\'\'g\'\'\' || \'\'\'r\'\'\' || \'\'\'i\'\'\' || \'\'\'z\'\'\' || \'\'\'J\'\'\' || \'\'\'H\'\'\' || \'\'\'K\'\'\' || \'\'\'Missing images?\'\'\' ||
            '''
   table.append(header.strip())
   tablerow = '''
-                ||%s||%s||%s||%s||%s||%s||%s||%s||%s||
+                ||%s||%s||%s||%s||%s||%s||%s||%s||%s||%s||
              '''
   tablerow = tablerow.strip()
 
   results = db.execute('SELECT * from Flags').fetchall()
   for row in results:
+    missingQuery = db.execute('SELECT g,r,i,z,J,H,K from MissingImages WHERE target="%s"' % row[1]).fetchall()[0]
+    print missingQuery
+    mapping = dict([(BANDS.index(b)+1,b) for b in BANDS])
+    missing = ''
     #row = [i if len(str(i)) <= 30 else i[-30:] for i in row]
     row = list(row)[1:]
     if row[1]:
       row[1] = '<bgcolor=\"#003CFF\"> Yes '
     for i in range(7):
+      if missingQuery[i]:
+        missing+=mapping[i]      
       if row[i+2]:
         row[i+2] = '<bgcolor=\"#FF0000\"> %s ' % row[i+2]
+    row.append(missing)    
     data = tablerow % tuple(row)
     table.append(data)
 
