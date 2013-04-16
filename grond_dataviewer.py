@@ -13,7 +13,7 @@ BASEDIR = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0,BASEDIR)
 from lib import astImages
 
-DEBUG = True
+DEBUG = False
 
 WIKI_URL = 'https://gamma-wiki.mpe.mpg.de/GROND/'
 WIKI_PAGE = 'grond_dataQA'
@@ -90,13 +90,18 @@ class Application(tk.Frame):
             self.targets.append(target)
             if target not in previous_targets:
               SQL = '''
-                    INSERT INTO Flags (target, viewed, %s) VALUES (%s, 0, %s) 
+                    INSERT INTO Flags (target, viewed, %s) VALUES (%s, 0, %s); 
                     '''
               SQL = SQL.strip()
               SQL = SQL % (','.join([i for i in BANDS]), '"%s"' % target, ','.join(["0" for i in range(len(BANDS))]) )
+              SQL+= '''
+                    INSERT INTO MissingImages (target, %s) VALUES (%s, %s) 
+                    '''     
+              SQL = SQL.strip()
+              SQL = SQL % (','.join([i for i in BANDS]), '"%s"' % target, ','.join(["0" for i in range(len(BANDS))]) )         
               if DEBUG:
                 print "initTarget with SQL:\n%s" % SQL
-              self.db.execute(SQL)
+              self.db.executescript(SQL)
               self.db.commit()
     self.current_target = self.targets[0]
 
@@ -108,11 +113,14 @@ class Application(tk.Frame):
     pool = Pool(processes=4) 
     self.cache={}
     fitsimages = []
+    missingimages = []
     for target in self.targets:
       for band in BANDS:
         img = os.path.join(target,'%s/GROND_%s_OB_ana.fits' % (band,band))
         if os.path.isfile(img):
           fitsimages.append(img)
+        else:
+          missingimages.append( (target,band) )
     for image in fitsimages:
       if IMAGE_ENGINE==astImages.saveBitmap:
        d = pyfits.open(image)[0].data
@@ -128,7 +136,16 @@ class Application(tk.Frame):
       if not round(loadvalue) % 10:
         print "Loading: %0.1f%%" % (loadvalue)
       pool.apply_async(IMAGE_ENGINE,args,callback=self.updateCache)
-      #pool.apply(IMAGE_ENGINE,args)
+    
+    SQL = ''
+    for target,band in missingimages:
+      SQL += '''
+            UPDATE MissingImages SET %s=1 WHERE target="%s";
+            '''
+      SQL = SQL.strip()
+      SQL = SQL % (band,target)
+    self.db.executescript(SQL)
+
 
   def updateCache(self,*args):
     image = args[0][0]
