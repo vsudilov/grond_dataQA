@@ -15,6 +15,9 @@ from lib import astImages
 
 DEBUG = True
 
+WIKI_URL = 'https://gamma-wiki.mpe.mpg.de/GROND/'
+WIKI_PAGE = 'grond_dataQA'
+
 DATABASE = os.path.join(BASEDIR,'dataviewer.db')
 CACHE_DIR = os.path.join(BASEDIR,'cache')
 FITS_REGEX = 'GROND_._OB_ana.fits'
@@ -39,7 +42,7 @@ def decodeIntFlag(val):
 def initdb():
   db = sqlite3.connect(DATABASE)
   SQL = '''
-        CREATE TABLE Flags (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, comments TEXT, viewed INTEGER, g, r, i, z, J, H, K);
+        CREATE TABLE Flags (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, viewed INTEGER, g, r, i, z, J, H, K);
         CREATE TABLE MissingImages (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT, g, r, i, z, J, H, K);
         '''
   SQL = SQL.strip()
@@ -87,7 +90,7 @@ class Application(tk.Frame):
             self.targets.append(target)
             if target not in previous_targets:
               SQL = '''
-                    INSERT INTO Flags (target, comments, viewed, %s) VALUES (%s, NULL, 0, %s) 
+                    INSERT INTO Flags (target, viewed, %s) VALUES (%s, 0, %s) 
                     '''
               SQL = SQL.strip()
               SQL = SQL % (','.join([i for i in BANDS]), '"%s"' % target, ','.join(["0" for i in range(len(BANDS))]) )
@@ -201,6 +204,8 @@ class Application(tk.Frame):
     os.system('rm %s/*png' % CACHE_DIR)
     #super(Application,self).quit() #tk.Frame is old-style class, super() won't work!
     tk.Frame.quit(self)
+    if self.args.user:
+      uploadToWiki(self.args,self.db)
 
   def jump_to(self,lb):
     self.save()
@@ -227,6 +232,8 @@ class Application(tk.Frame):
           '''
     SQL=SQL.strip()
     SQL = SQL % (band,self.current_target)
+    if DEBUG:
+      print "Querying for set flags with SQL:\n%s" % SQL
     intFlag = self.db.execute(SQL).fetchall()[0][0]
     L = decodeIntFlag(intFlag)
     if not L[flagIndex]:
@@ -296,7 +303,6 @@ class Application(tk.Frame):
     SQL = 'SELECT viewed FROM Flags WHERE target=="%s"' % self.current_target
     result = self.db.execute(SQL).fetchall()[0][0]
     if result:
-      print self.current_target,result
       text = "This target has been viewed at least once before"
       l = tk.Label(self,text=text,fg="blue")
       l.grid(column=1,row=100,columnspan=5,sticky=tk.W)
@@ -311,7 +317,7 @@ class Application(tk.Frame):
     lb.pack(side=tk.LEFT)
 
     for t in self.targets:
-      lb.insert(tk.END, t[-20:])
+      lb.insert(tk.END, t)
       SQL = '''
             SELECT viewed FROM Flags where target="%s"
             '''
@@ -335,14 +341,52 @@ class Application(tk.Frame):
       print "Checkboxes:"
       [self.printPosition(c) for c in self.checkboxes]
 
+
+def uploadToWiki(args,db):
+  from lib import wikipage
+  print "Attempting to upload to [%s%s]" % (WIKI_URL,WIKI_PAGE)
+  wikibot = wikipage.WikiPage(wiki_url=WIKI_URL,pagename=WIKI_PAGE,username=args.user,password=args.passwd)
+  wikibot.login()
+  wikibot.open() 
+  
+  table = []
+  header = '''
+                || \'\'\'Path\'\'\' || \'\'\'Viewed?\'\'\' || \'\'\'g\'\'\' || \'\'\'r\'\'\' || \'\'\'i\'\'\' || \'\'\'z\'\'\' || \'\'\'J\'\'\' || \'\'\'H\'\'\' || \'\'\'K\'\'\' ||
+           '''
+  table.append(header.strip())
+  tablerow = '''
+                ||%s||%s||%s||%s||%s||%s||%s||%s||%s||
+             '''
+  tablerow = tablerow.strip()
+
+  results = db.execute('SELECT * from Flags').fetchall()
+  for row in results:
+    #row = [i if len(str(i)) <= 30 else i[-30:] for i in row]
+    row = list(row)[1:]
+    if row[1]:
+      row[1] = '<bgcolor=\"#003CFF\"> Yes '
+    for i in range(7):
+      if row[i+2]:
+        row[i+2] = '<bgcolor=\"#FF0000\"> %s ' % row[i+2]
+    data = tablerow % tuple(row)
+    table.append(data)
+
+  wikibot.linelist = table
+  wikibot.save()
+  wikibot.logout()
+
+
+
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('PATH',nargs=1)
-  #parser.add_argument('--resume', dest='resume',default=False,action="store_true") #Not yet implemented
+  parser.add_argument('-u','--user',nargs=1,required=False,dest="user")
+  parser.add_argument('-p','--password',nargs=1,required=False,dest="passwd")
   args = parser.parse_args()
   if DEBUG:
     print args
   app = Application(args)                       
-  app.master.title('Title')    
+  app.master.title('GROND data QA')    
   app.mainloop()          
                   
