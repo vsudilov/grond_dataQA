@@ -13,7 +13,7 @@ BASEDIR = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0,BASEDIR)
 from lib import astImages
 
-DEBUG = False
+DEBUG = True
 
 DATABASE = os.path.join(BASEDIR,'dataviewer.db')
 CACHE_DIR = os.path.join(BASEDIR,'cache')
@@ -66,6 +66,8 @@ class Application(tk.Frame):
     self.initImages()
     tk.Frame.__init__(self, master)   
     self.grid()
+    self.rowconfigure(0, weight=1)
+    self.columnconfigure(0, weight=1)
     self.createWidgets()
 
   def initTargets(self):
@@ -132,8 +134,8 @@ class Application(tk.Frame):
     Callback function that is called whenever an async task completes.
     Updates the internal cache with {FITS_path:PNG_path}
     '''
-    if DEBUG:
-      print "updating cache with %s=%s" % (image,fname)
+    #if DEBUG: #Too much spam!
+      #print "updating cache with %s=%s" % (image,fname)
     self.cache[image]=fname
 
   def connectToDB(self):
@@ -172,6 +174,7 @@ class Application(tk.Frame):
     [b.grid_forget() for b in self.buttons]
     [c.grid_forget() for c in self.checkboxes]
     [l.grid_forget() for l in self.labels]
+    [f.grid_forget() for f in self.frames]
 
   def save(self):
     '''
@@ -199,6 +202,14 @@ class Application(tk.Frame):
     #super(Application,self).quit() #tk.Frame is old-style class, super() won't work!
     tk.Frame.quit(self)
 
+  def jump_to(self,lb):
+    self.save()
+    selection=lb.curselection()
+    target = lb.get(selection[0])
+    self.current_target = target
+    self.clear()
+    self.createWidgets()
+
   def next(self):
     self.save()
     try:
@@ -218,7 +229,6 @@ class Application(tk.Frame):
     SQL = SQL % (band,self.current_target)
     intFlag = self.db.execute(SQL).fetchall()[0][0]
     L = decodeIntFlag(intFlag)
-    print L,flagIndex,intFlag
     if not L[flagIndex]:
       return "0"
     return "1" #TK expects string booleans
@@ -243,6 +253,7 @@ class Application(tk.Frame):
     self.buttons = []
     self.checkboxes = []
     self.labels = []
+    self.frames = []
     startcol = 0
     startrow = row+1*rowspan
     col,row = startcol, startrow
@@ -274,13 +285,9 @@ class Application(tk.Frame):
     self.buttons.append(b)
     
     b = tk.Button(self, text="Refresh page",command=self.refresh)
-    b.grid()
+    b.grid(column=0,row=100)
     self.buttons.append(b)
 
-#    b = tk.Button(self, text="Previous",command=self.back)
-#    b.grid(column=99,row=100)
-#    self.buttons.append(b)
-    
     text = "%s (%s/%s)" % (self.current_target,self.targets.index(self.current_target)+1,len(self.targets))
     l = tk.Label(self,text=text)
     l.grid(column=50,row=100)
@@ -294,13 +301,39 @@ class Application(tk.Frame):
       l = tk.Label(self,text=text,fg="blue")
       l.grid(column=1,row=100,columnspan=5,sticky=tk.W)
       self.labels.append(l)
-    
+
+    f = tk.Frame(self,borderwidth=5, relief="sunken")  
+    f.grid(column=100,row=1,sticky=tk.W,rowspan=100)
+    self.frames.append(f)
+    sb = tk.Scrollbar(f)
+    sb.pack(side=tk.RIGHT, fill=tk.Y)
+    lb = tk.Listbox(f,height=25)
+    lb.pack(side=tk.LEFT)
+
+    for t in self.targets:
+      lb.insert(tk.END, t[-20:])
+      SQL = '''
+            SELECT viewed FROM Flags where target="%s"
+            '''
+      SQL = SQL.strip()
+      SQL = SQL % t
+      if self.db.execute(SQL).fetchall()[0][0]:
+        lb.itemconfig(self.targets.index(t), bg='blue', fg='white')
+    lb.config(yscrollcommand=sb.set)
+    sb.config(command=lb.yview)
+  
+    b = tk.Button(f,text="Go",command=lambda: self.jump_to(lb))
+    b.pack()
+
     if DEBUG:
       print "Images:"
       [self.printPosition(i) for i in self.imlabels]
       print "Buttons:"
       [self.printPosition(b) for b in self.buttons]
-
+      print "Frames:"
+      [self.printPosition(f) for f in self.frames]
+      print "Checkboxes:"
+      [self.printPosition(c) for c in self.checkboxes]
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
