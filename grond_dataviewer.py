@@ -340,6 +340,7 @@ class Application(tk.Frame):
       SQL = SQL % t
       if self.db.execute(SQL).fetchall()[0][0]:
         lb.itemconfig(self.targets.index(t), bg='blue', fg='white')
+    lb.itemconfig(self.targets.index(self.current_target), bg='green', fg='black')
     lb.config(yscrollcommand=sb.set)
     sb.config(command=lb.yview)
   
@@ -365,6 +366,14 @@ def uploadToWiki(args,db):
   wikibot.open() 
   
   table = []
+  table.append('=== Binary flagging with the following values ===\n')
+  table.append('{{{')
+  for flagIndex,(flagTxt,flagDBname) in FLAGS.iteritems():
+    s = '%s: %s' % (flagTxt,2**flagIndex)
+    table.append(s)
+  table.append('}}}')    
+
+
   header = '''
                 || \'\'\'Path\'\'\' || \'\'\'Viewed?\'\'\' || \'\'\'g\'\'\' || \'\'\'r\'\'\' || \'\'\'i\'\'\' || \'\'\'z\'\'\' || \'\'\'J\'\'\' || \'\'\'H\'\'\' || \'\'\'K\'\'\' || \'\'\'Missing images?\'\'\' ||
            '''
@@ -377,7 +386,6 @@ def uploadToWiki(args,db):
   results = db.execute('SELECT * from Flags').fetchall()
   for row in results:
     missingQuery = db.execute('SELECT g,r,i,z,J,H,K from MissingImages WHERE target="%s"' % row[1]).fetchall()[0]
-    print missingQuery
     mapping = dict([(BANDS.index(b)+1,b) for b in BANDS])
     missing = ''
     #row = [i if len(str(i)) <= 30 else i[-30:] for i in row]
