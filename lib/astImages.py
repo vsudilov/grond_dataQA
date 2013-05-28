@@ -848,7 +848,7 @@ def generateContourOverlay(backgroundImageData, backgroundImageWCS, contourImage
     return {'scaledImage': scaledBack, 'contourLevels': cLevels}
     
 #---------------------------------------------------------------------------------------------------
-def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorMapName):
+def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorMapName,scale=None):
     """Makes a bitmap image from an image array; the image format is specified by the
     filename extension. (e.g. ".jpg" =JPEG, ".png"=PNG).
     
@@ -869,8 +869,14 @@ def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorM
     @param colorMapName: name of a standard matplotlib colormap, e.g. "hot", "cool", "gray"
     etc. (do "help(pylab.colormaps)" in the Python interpreter to see available options)
     
-    """		
-    cut=intensityCutImage(imageData, cutLevels)
+    """
+    
+		
+    if not scale:
+      cut=intensityCutImage(imageData, cutLevels)
+    else:
+      anorm = pylab.normalize(scale[0],scale[1])
+      cut = {'image': imageData, 'norm': anorm}  
     # Make plot
     aspectR=float(cut['image'].shape[0])/float(cut['image'].shape[1])
     fig = pylab.figure(figsize=(10,10*aspectR))
@@ -897,7 +903,7 @@ def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorM
     pylab.axis("off")
     
     pylab.savefig(outputFileName,format="png",dpi=dpi)	
-    pylab.close("all")
+
     return inputFileName,outputFileName
 #    try:
 #        from PIL import Image

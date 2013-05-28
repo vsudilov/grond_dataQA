@@ -8,6 +8,7 @@ from multiprocessing import Pool
 import uuid
 import re
 import argparse
+from stsci.numdisplay import zscale
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0,BASEDIR)
@@ -125,9 +126,8 @@ class Application(tk.Frame):
       if IMAGE_ENGINE==astImages.saveBitmap:
        d = pyfits.open(image)[0].data
        fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
-       #saveBitmap(outputFileName, imageData, cutLevels, size, colorMapName)
-       #cutLevels=["smart", 99.5],size=300,colorMapName='gray'
-       args = [fname,image,d,["smart", 99.5],300,'gray_r']
+       scale=zscale.zscale(d)
+       args = [fname,image,d,["smart", 99.5],300,'gray_r',scale]
       #if IMAGE_ENGINE==lib.ds9: #Not yet implemented
       #  args = []
       if DEBUG:
