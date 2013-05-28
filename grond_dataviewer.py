@@ -53,8 +53,23 @@ def initdb():
   db.commit()
   db.close()
   
+class AutoScrollbar(tk.Scrollbar):
+    # a scrollbar that hides itself if it's not needed.  only
+    # works if you use the grid geometry manager.
+    def set(self, lo, hi):
+        if float(lo) <= 0.0 and float(hi) >= 1.0:
+            # grid_remove is currently missing from Tkinter!
+            self.tk.call("grid", "remove", self)
+        else:
+            self.grid()
+        tk.Scrollbar.set(self, lo, hi)
+    def pack(self, **kw):
+        raise tk.TclError, "cannot use pack with this widget"
+    def place(self, **kw):
+        raise tk.TclError, "cannot use place with this widget"
 
-class Application(tk.Frame):
+
+class Application():
   '''
   Creates the GROND data QA app.
   Loops (recursively) over the GROND_._OB_ana.fits images found in the CL specified
@@ -63,16 +78,45 @@ class Application(tk.Frame):
   checkboxes to a sqlite3 database
   '''
 
-  def __init__(self, args, master=None):
+  def __init__(self, root, args, master=None):
     self.args = args
     self.connectToDB()
     self.initTargets()
     self.initImages()
-    tk.Frame.__init__(self, master)   
-    self.grid()
-    self.rowconfigure(0, weight=1)
-    self.columnconfigure(0, weight=1)
+
+    #http://effbot.org/zone/tkinter-autoscrollbar.htm
+    vscrollbar = AutoScrollbar(root)
+    vscrollbar.grid(row=0, column=100, sticky=tk.N+tk.S)
+    hscrollbar = AutoScrollbar(root, orient=tk.HORIZONTAL)
+    hscrollbar.grid(row=100, column=0, sticky=tk.E+tk.W)
+
+    canvas = tk.Canvas(root,
+                    yscrollcommand=vscrollbar.set,
+                    xscrollcommand=hscrollbar.set,
+                    width=500,
+                    height=500)
+    canvas.grid(row=0, column=0, sticky=tk.N+tk.S+tk.E+tk.W)
+
+    vscrollbar.config(command=canvas.yview)
+    hscrollbar.config(command=canvas.xview)
+
+    # make the canvas expandable
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    #
+    # create canvas contents
+
+    self.frame = tk.Frame(canvas)
+    self.frame.rowconfigure(1, weight=1)
+    self.frame.columnconfigure(1, weight=1)
     self.createWidgets()
+
+    canvas.create_window(0, 0, anchor=tk.NW, window=self.frame)
+
+    self.frame.update_idletasks()
+
+    canvas.config(scrollregion=canvas.bbox("all"))
 
   def initTargets(self):
     self.targets = []
@@ -266,7 +310,7 @@ class Application(tk.Frame):
     rowspan = colspan
     for image in self.getImagesFromCache():
       photo = ImageTk.PhotoImage(Image.open(image))
-      imlabel = tk.Label(self,image=photo)
+      imlabel = tk.Label(self.frame,image=photo)
       imlabel.image = photo # keep a reference!
       imlabel.grid(column=col,row=row,columnspan=colspan,rowspan=rowspan,sticky=tk.W+tk.E+tk.S+tk.N)
       col += 1*colspan
@@ -287,34 +331,34 @@ class Application(tk.Frame):
     self.flags = {}
     for band in BANDS:
       self.flags[band] = {}
-      l = tk.Label(self,text=band)
+      l = tk.Label(self.frame,text=band)
       l.grid(column=col,row=row)
       self.labels.append(l)
       for flagIndex,(flagTxt,flagDBname) in FLAGS.iteritems():
         row+=1*rowspan
         self.flags[band][flagIndex] = tk.IntVar()
         self.flags[band][flagIndex].set(self.getFlagVal(band,flagIndex))
-        c = tk.Checkbutton(self,text=flagTxt,variable=self.flags[band][flagIndex])
+        c = tk.Checkbutton(self.frame,text=flagTxt,variable=self.flags[band][flagIndex])
         c.grid(column=col,row=row,columnspan=colspan,rowspan=rowspan,sticky=tk.W)
         self.checkboxes.append(c)
       col+=1*colspan
       row = startrow
 
     
-    b = tk.Button(self, text='Save and Quit', command=self.quit)
+    b = tk.Button(self.frame, text='Save and Quit', command=self.quit)
     b.grid(column=100,row=0)        
     self.buttons.append(b)
 
-    b = tk.Button(self, text="Save and continue",command=self.next)
+    b = tk.Button(self.frame, text="Save and continue",command=self.next)
     b.grid(column=100,row=100)
     self.buttons.append(b)
     
-    b = tk.Button(self, text="Refresh page",command=self.refresh)
+    b = tk.Button(self.frame, text="Refresh page",command=self.refresh)
     b.grid(column=0,row=100)
     self.buttons.append(b)
 
     text = "%s (%s/%s)" % (self.current_target,self.targets.index(self.current_target)+1,len(self.targets))
-    l = tk.Label(self,text=text)
+    l = tk.Label(self.frame,text=text)
     l.grid(column=50,row=100)
     self.labels.append(l)
 
@@ -326,7 +370,7 @@ class Application(tk.Frame):
       l.grid(column=1,row=100,columnspan=5,sticky=tk.W)
       self.labels.append(l)
 
-    f = tk.Frame(self,borderwidth=5, relief="sunken")  
+    f = tk.Frame(self.frame,borderwidth=5, relief="sunken")  
     f.grid(column=100,row=1,sticky=tk.W,rowspan=100)
     self.frames.append(f)
     sb = tk.Scrollbar(f)
@@ -419,7 +463,8 @@ if __name__ == "__main__":
   args = parser.parse_args()
   if DEBUG:
     print args
-  app = Application(args)                       
-  app.master.title('GROND data QA')    
-  app.mainloop()          
+  root = tk.Tk()
+  app = Application(root,args)                       
+  #root.master.title('GROND data QA')    
+  root.mainloop()          
                   
