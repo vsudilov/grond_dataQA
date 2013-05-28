@@ -21,7 +21,7 @@ REPORT_ERRORS=True
 import os
 import sys
 import math
-
+from stsci.numdisplay import zscale
 import pyfits
 try:
     from scipy import ndimage
@@ -31,7 +31,9 @@ except:
 import numpy
 try:
     import matplotlib
-    from matplotlib import pylab
+    matplotlib.use('Agg')
+    #from matplotlib import pylab
+    from matplotlib import pyplot
     matplotlib.interactive(False)
 except:
     print "WARNING: astImages: failed to import matplotlib - some functions will not work."
@@ -848,7 +850,7 @@ def generateContourOverlay(backgroundImageData, backgroundImageWCS, contourImage
     return {'scaledImage': scaledBack, 'contourLevels': cLevels}
     
 #---------------------------------------------------------------------------------------------------
-def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorMapName,scale=None):
+def saveBitmap(outputFileName, inputFileName, imageData, size, colorMapName):
     """Makes a bitmap image from an image array; the image format is specified by the
     filename extension. (e.g. ".jpg" =JPEG, ".png"=PNG).
     
@@ -870,40 +872,33 @@ def saveBitmap(outputFileName, inputFileName, imageData, cutLevels, size, colorM
     etc. (do "help(pylab.colormaps)" in the Python interpreter to see available options)
     
     """
-    
-		
-    if not scale:
-      cut=intensityCutImage(imageData, cutLevels)
-    else:
-      anorm = pylab.normalize(scale[0],scale[1])
-      cut = {'image': imageData, 'norm': anorm}  
+    import time
+    start = time.time()
+    scale=zscale.zscale(imageData)
+    anorm = matplotlib.colors.Normalize(scale[0],scale[1])
+    cut = {'image': imageData, 'norm': anorm}  
     # Make plot
     aspectR=float(cut['image'].shape[0])/float(cut['image'].shape[1])
-    fig = pylab.figure(figsize=(10,10*aspectR))
+    fig = pyplot.figure(figsize=(10,10*aspectR))
 
     xPix = size
     yPix = size
-    dpi = 100
+    dpi = 80
     xSizeInches = size/dpi
     ySizeInches = xSizeInches
     fig.set_size_inches(xSizeInches,ySizeInches)
-    pylab.axes([0,0,1,1])
+    pyplot.axes([0,0,1,1])
+    pyplot.minorticks_off()	
         
     try:
-        colorMap=pylab.cm.get_cmap(colorMapName)
+        colorMap=matplotlib.cm.get_cmap(colorMapName)
     except AssertionError:
         raise Exception, colorMapName+" is not a defined matplotlib colormap."
-    
-    if cutLevels[0]=="histEq":
-        pylab.imshow(cut['image'],  interpolation="bilinear", origin='lower', cmap=colorMap)
-    
-    else:
-        pylab.imshow(cut['image'],  interpolation="bilinear",  norm=cut['norm'], origin='lower',
-            cmap=colorMap)
-    pylab.axis("off")
-    
-    pylab.savefig(outputFileName,format="png",dpi=dpi)	
 
+    pyplot.imshow(cut['image'],  interpolation="bilinear",  norm=cut['norm'], origin='lower', cmap=colorMap)
+    pyplot.axis("off")
+    pyplot.savefig(outputFileName,format="png",dpi=dpi)
+    pyplot.close()
     return inputFileName,outputFileName
 #    try:
 #        from PIL import Image

@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import uuid
 import re
 import argparse
-from stsci.numdisplay import zscale
+import time
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0,BASEDIR)
@@ -111,7 +111,7 @@ class Application(tk.Frame):
     Finds all GROND_._OB_ana.fits files in the CL specified directory
     Gives these images to the (async) process that creates the PNGs 
     '''
-    pool = Pool(processes=4) 
+    pool = Pool(processes=16) #more than OK for sauron
     self.cache={}
     fitsimages = []
     missingimages = []
@@ -124,10 +124,12 @@ class Application(tk.Frame):
           missingimages.append( (target,band) )
     for image in fitsimages:
       if IMAGE_ENGINE==astImages.saveBitmap:
-       d = pyfits.open(image)[0].data
-       fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
-       scale=zscale.zscale(d)
-       args = [fname,image,d,["smart", 99.5],300,'gray_r',scale]
+        fp = pyfits.open(image)
+        d = fp[0].data    
+        fp.close()
+        del fp
+        fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
+        args = [fname,image,d,300,'gray_r']
       #if IMAGE_ENGINE==lib.ds9: #Not yet implemented
       #  args = []
       if DEBUG:
@@ -136,6 +138,7 @@ class Application(tk.Frame):
       if not round(loadvalue) % 10:
         print "Loading: %0.1f%%" % (loadvalue)
       pool.apply_async(IMAGE_ENGINE,args,callback=self.updateCache)
+      #pool.apply(IMAGE_ENGINE,args)
     
     SQL = ''
     for target,band in missingimages:
