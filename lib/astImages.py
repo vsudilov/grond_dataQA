@@ -850,7 +850,7 @@ def generateContourOverlay(backgroundImageData, backgroundImageWCS, contourImage
     return {'scaledImage': scaledBack, 'contourLevels': cLevels}
     
 #---------------------------------------------------------------------------------------------------
-def saveBitmap(outputFileName, inputFileName, imageData, size, colorMapName):
+def saveBitmap(outputFileName, inputFileName, imageData, size, colorMapName, caption):
     """Makes a bitmap image from an image array; the image format is specified by the
     filename extension. (e.g. ".jpg" =JPEG, ".png"=PNG).
     
@@ -897,6 +897,10 @@ def saveBitmap(outputFileName, inputFileName, imageData, size, colorMapName):
 
     pyplot.imshow(cut['image'],  interpolation="bilinear",  norm=cut['norm'], origin='lower', cmap=colorMap)
     pyplot.axis("off")
+    xmin,xmax = fig.gca().get_xlim()
+    ymin,ymax = fig.gca().get_ylim()
+    pyplot.text(xmin+1,ymin+35,caption,color="red",fontsize=20,fontweight=500,backgroundcolor='white')
+
     pyplot.savefig(outputFileName,format="png",dpi=dpi)
     pyplot.close()
     return inputFileName,outputFileName

@@ -170,10 +170,11 @@ class Application():
       if IMAGE_ENGINE==astImages.saveBitmap:
         fp = pyfits.open(image)
         d = fp[0].data    
+        caption = fp[0].header.get('FILTER')
         fp.close()
         del fp
         fname = os.path.join(CACHE_DIR,'%s.png' % uuid.uuid4())
-        args = [fname,image,d,300,'gray_r']
+        args = [fname,image,d,300,'gray_r',caption]
       #if IMAGE_ENGINE==lib.ds9: #Not yet implemented
       #  args = []
       if DEBUG:
