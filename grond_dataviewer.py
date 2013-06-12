@@ -264,7 +264,6 @@ class Application():
     self.save()
     if DEBUG:
       print "Cleanup: Removing all PNGs in %s" % CACHE_DIR
-    os.system('rm %s/*png' % CACHE_DIR)
     #super(Application,self).quit() #tk.Frame is old-style class, super() won't work!
     tk.Frame.quit(self)
     if self.args.user:
@@ -468,4 +467,4 @@ if __name__ == "__main__":
   app = Application(root,args)                       
   #root.master.title('GROND data QA')    
   root.mainloop()          
-                  
+  os.system('rm %s/*png' % CACHE_DIR)
