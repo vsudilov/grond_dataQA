@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import Tkinter as tk       
 from PIL import Image, ImageTk
 import os
