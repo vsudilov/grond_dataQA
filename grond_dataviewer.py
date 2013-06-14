@@ -266,7 +266,7 @@ class Application():
     if DEBUG:
       print "Cleanup: Removing all PNGs in %s" % CACHE_DIR
     #super(Application,self).quit() #tk.Frame is old-style class, super() won't work!
-    tk.Frame.quit(self)
+    tk.Frame.quit(self.frame)
     if self.args.user:
       uploadToWiki(self.args,self.db)
 
@@ -367,7 +367,7 @@ class Application():
     result = self.db.execute(SQL).fetchall()[0][0]
     if result:
       text = "This target has been viewed at least once before"
-      l = tk.Label(self,text=text,fg="blue")
+      l = tk.Label(self.frame,text=text,fg="blue")
       l.grid(column=1,row=100,columnspan=5,sticky=tk.W)
       self.labels.append(l)
 
